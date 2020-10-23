@@ -1,12 +1,6 @@
-#import urllib2
 import urllib.request
-#import urllib.error
-#import re
 import time
 from bs4 import BeautifulSoup
-#from dateutil import parser
-from geopy.geocoders import Yandex
-#from reason_classifier import ReasonClassifier
 
 class LFP_Scraper():
 
@@ -31,54 +25,152 @@ class LFP_Scraper():
 
 		return match_Links
 
-	def get_match_Details(self, matchHome, matchResult, matchAway):
+	def get_match_details(self, matchHome, matchResult, matchAway):
 
+		'''
 		print('***** matchHome *****')
 		print(matchHome.text.strip())
 		print('***** matchResult *****')
 		print(matchResult.text.strip())
 		print('***** matchAway *****')
 		print(matchAway.text.strip())
-
+		'''
 		return matchHome.text.strip() + '-' + matchAway.text.strip()
 
-	def get_match_Events(self, match_Id, matchEvents):
+	def get_event_home_away(self, event_minute_home):
+		event_minute_home = event_minute_home.text.strip()
+		if event_minute_home != "":
+			event_home_away = 'Home'
+		else:
+			event_home_away = 'Away'
 
-		print('***** matchEvents *****')
+		return event_home_away
 
-		matchEvent = matchEvents.findAll("div", {"class": "matchEvent"})
-		for event in matchEvent:
+	def clear_event_type(self, event_Type):
 
-			# Add match Info
-			currentEvent = []
-			currentEvent.append(match_Id)
+		# Get de class
+		event_Type = event_Type['class']
+		# Get second component
+		event_Type = event_Type[1]
+		# Remove 'eventIcon_' String
+		event_Type = event_Type[10:]
 
-			divs = event.findAll('div')
-			for div in divs:
-				currentEvent.append(div.text.strip())
+		list_Event_Type = {
+			'1': 'Goal',
+			'2': 'Own Goal',
+			'3': 'Penalty Goal',
+			'4': 'Missed Penalty',
+			'5': 'Yellow Card',
+			'6': 'Red Card',
+			'7':  'Change'
+		}
 
-			print('**')
-			print(currentEvent)
+		# Find value in list. Default return value
+		event_Type = list_Event_Type.get(event_Type, event_Type)
+
+		return event_Type
+
+	def clear_event_minute(self, event_home_away, event_minute_home, event_minute_away):
+
+		if event_home_away == "Home":
+			event_minute = event_minute_home.text.strip()
+		else:
+			event_minute = event_minute_away.text.strip()
+
+		return event_minute.replace('\'', '')
+
+	def clear_event_player(self, event_home_away, event_player_home, event_player_away):
+
+		if event_home_away == "Home":
+			event_player = event_player_home.text.strip()
+		else:
+			event_player = event_player_away.text.strip()
+
+		start = event_player.find('(')
+		stop = event_player.find(')')
+		if len(event_player) > stop:
+			event_player = event_player[0: start:] + event_player[stop + 1::]
+
+		return event_player.strip()
+
+	def clear_event_2_player(self, event_home_away, event_player_home, event_player_away, event_type):
+
+		if event_home_away == "Home":
+			event_2_player = event_player_home.text.strip()
+		else:
+			event_2_player = event_player_away.text.strip()
+
+		# If is a event type in list, remove a web bug (second player)
+		if event_type in ('Change'):
+			start = event_2_player.find('(')
+			stop = event_2_player.find(')')
+			if len(event_2_player) > stop:
+				event_2_player = event_2_player[start + 1:stop]
+		else:
+			event_2_player = ''
+
+		return event_2_player.strip()
+
+	def get_match_events(self, match_id, match_events):
+
+		# print('***** matchEvents *****')
+		# Read features' names?
+		if len(self.dataEvents) == 0:
+			current_event = []
+			current_event.append('match_id')
+			current_event.append('minute')
+			current_event.append('type')
+			current_event.append('home_away')
+			current_event.append('player')
+			current_event.append('player_2')
 			# Store the data
-			self.dataEvents.append(currentEvent)
+			self.dataEvents.append(current_event)
+
+		match_event = match_events.findAll("div", {"class": "matchEvent"})
+		for event in match_event:
+
+			# Get all Divs
+			divs = event.findAll('div')
+
+			event_home_away = self.get_event_home_away(divs[1])
+			event_minute = self.clear_event_minute(event_home_away, divs[1], divs[3])
+			event_type = self.clear_event_type(divs[2])
+			event_player = self.clear_event_player(event_home_away, divs[0], divs[4])
+			event_2_player = self.clear_event_2_player(event_home_away, divs[0], divs[4], event_type)
+
+			# Create Current Event
+			current_event = []
+			current_event.append(match_id)
+			current_event.append(event_minute)
+			current_event.append(event_type)
+			current_event.append(event_home_away)
+			current_event.append(event_player)
+			current_event.append(event_2_player)
+
+			# Store the data
+			self.dataEvents.append(current_event)
 
 		return True
 
-	def get_match_Lineups(self, matchLineups):
+	def get_match_lineups(self, matchLineups):
 
-		print('***** matchLineups *****')
-		#print(matchLineups)
+		# print('***** matchLineups *****')
 
 		return True
 
-	def get_match_Statistics(self, matchStatistics):
+	def get_match_statistics(self, matchStatistics):
 
-		print('***** matchStatistics *****')
+		# print('***** matchStatistics *****')
 		#print(matchStatistics)
 
 		return True
 
 	def get_match(self, url_Match):
+		#print('***** get_match *****')
+		match_Id = url_Match.split(sep=',')[3]
+		match_Id = match_Id[0:-4]
+		#print('match_Id: ' + match_Id)
+
 		# Download HTML
 		html = self.download_html(self.url + '/' + url_Match)
 		bs = BeautifulSoup(html, 'html.parser')
@@ -91,16 +183,19 @@ class LFP_Scraper():
 		matchLineups = bs.find("div", {"id": "matchLineups"})
 		matchStatistics = bs.find("div", {"id": "matchStatistics"})
 
-		match_Id = self.get_match_Details(matchHome, matchResult, matchAway)
-		self.get_match_Events(match_Id, matchEvents)
-		self.get_match_Lineups(matchLineups)
-		self.get_match_Statistics(matchStatistics)
+		self.get_match_details(matchHome, matchResult, matchAway)
+		if matchEvents is not None:
+			self.get_match_events(match_Id, matchEvents)
+		if matchLineups is not None:
+			self.get_match_lineups(matchLineups)
+		if matchStatistics is not None:
+			self.get_match_statistics(matchStatistics)
 
-		return True
+		return match_Id
 
 	def scrape(self):
 		print("Web Scraping of LFP from '" + self.url + self.subdomain + "'")
-		print("This process could take roughly XXX minutes.\n")
+		print("This process could take roughly 5 minutes.\n")
 
 		# Start timer
 		start_time = time.time()
@@ -112,13 +207,18 @@ class LFP_Scraper():
 		# Get the links of each match
 		match_links = self.get_match_links(html)
 
-		# Prueba para el primer partido, después lo hacemos para todos
-		match = match_links[1]
-		# Bucle para todos los partidos
-		# for match in match_links:
+		# Cogemos los X primeros para pruebas
+		match_links = match_links[:60]
 
-		match_link = match.find('a').get('href')
-		self.get_match(match_link)
+		# Bucle para todos los partidos
+		contador = 0
+		num_partidos = len(match_links)
+		for match in match_links:
+			contador += 1
+			print('Processing match number ' + repr(contador) + ' of ' + repr(num_partidos))
+
+			match_link = match.find('a').get('href')
+			self.get_match(match_link)
 
 		# Show elapsed time
 		end_time = time.time()
@@ -129,14 +229,16 @@ class LFP_Scraper():
 	def dataEvents2csv(self, filename):
 		# Overwrite to the specified file.
 		# Create it if it does not exist.
-		file = open("../csv/" + filename, "w+")
+		file = open("../csv/" + filename, "wb+")
 
 		# Dump all the data with CSV format
 		for i in range(len(self.dataEvents)):
+			a = ""
 			for j in range(len(self.dataEvents[i])):
-				file.write(self.dataEvents[i][j] + ";");
-			file.write("\n");
-
+				a += self.dataEvents[i][j] + ";"
+			file.write(a.encode('utf8'))
+			file.write("\n".encode('utf8'))
+		file.close()
 
 	def data2csv(self, fileEventsName):
 		self.dataEvents2csv(fileEventsName)
