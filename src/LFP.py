@@ -9,7 +9,9 @@ class LFP_Scraper():
 		self.url = "https://es.fcstats.com"
 		self.subdomain = "/partidos,primera-division-espana,19,1.php"
 
+		self.dataMatches = []
 		self.dataEvents = []
+		self.dataLineups = []
 
 	# Descargamos la página seleccionada
 	def download_html(self, url):
@@ -17,6 +19,7 @@ class LFP_Scraper():
 		html = response.read()
 		return html
 
+	# Obtenemos la lista de partidos
 	def get_match_links(self, html):
 
 		# Get link for all match
@@ -25,17 +28,71 @@ class LFP_Scraper():
 
 		return match_Links
 
-	def get_match_details(self, matchHome, matchResult, matchAway):
+	def get_match_cols(self, bs, url_Match):
 
-		'''
-		print('***** matchHome *****')
-		print(matchHome.text.strip())
-		print('***** matchResult *****')
-		print(matchResult.text.strip())
-		print('***** matchAway *****')
-		print(matchAway.text.strip())
-		'''
-		return matchHome.text.strip() + '-' + matchAway.text.strip()
+		cols_general = ['ID', 'Local', 'Visitante', 'Liga', 'Fecha y hora',
+						'Temporada', 'Árbitro', 'Estadio']
+		cols_goles = ['Goles Local', 'Goles Visitante', 'Goles 1er tiempo Local',
+					  'Goles 1er tiempo Visitante']
+
+		# Podemos obtener los nombres de las columnas a partir del primer partido:
+		matchStatistics = bs.find("div", {"id": "matchStatistics"})
+		stats = matchStatistics.findAll("div")
+
+		cols_stats = []
+		for i in range(1, 64, 4):
+			cols_stats.append(stats[i].findAll("div")[1].text.strip())
+
+		# Nos interesa que cada estadística se guarde por separado LOCAL y VISITANTE:
+		cols_lv = []
+		for col in cols_stats:
+			cols_lv.append(col + ' Local')
+			cols_lv.append(col + ' Visitante')
+
+		cols = cols_general + cols_goles + cols_lv
+
+		# Store the data
+		self.dataMatches.append(cols)
+
+	def get_match_details(self, match_Id, bs, url_Match):
+
+		# Pintamos la cabecera la primera vez
+		if len(self.dataMatches) == 0: self.get_match_cols(bs, url_Match)
+
+		matchInfo = bs.find("div", {"id": "matchInfo"})
+		matchStatistics = matchInfo.find("div", {"id": "matchStatistics"})
+
+		if matchStatistics == None:
+			principal_info = bs.find("div", {"id": "matchInfo"})
+			a = principal_info.findAll("a")
+			match_row = [match_Id, a[2].text.strip(), a[3].text.strip(),
+						 a[0].text.strip(), a[1].text.strip(),
+						 principal_info.findAll("div")[1].text.strip()[19:28]]
+			aplazado = ['Sin disputar'] * 38
+			return match_row + aplazado
+		else:
+			stats = matchStatistics.findAll("div")
+
+			principal_info = bs.find("div", {"id": "matchInfo"})
+			matchResult = bs.find("td", {"id": "matchResult"})
+			[golesL, golesV] = matchResult.text.strip().split(':')
+			a = principal_info.findAll("a")
+			d = principal_info.findAll("div")
+			[goles_1erT_L, goles_1erT_V] = d[6].text.strip()[-3:].split(':')
+
+			match_row = [match_Id, a[2].text.strip(), a[3].text.strip(),
+						 a[0].text.strip(), a[1].text.strip(),
+						 d[1].text.strip()[19:28], d[3].text.strip()[9:],
+						 d[4].text.strip()[9:], golesL, golesV,
+						 goles_1erT_L, goles_1erT_V]
+
+			for i in range(1, 64, 4):
+				match_row.append(stats[i].findAll("div")[0].text.strip())
+				match_row.append(stats[i].findAll("div")[2].text.strip())
+
+			self.dataMatches.append(match_row)
+
+			return match_row
 
 	def get_event_home_away(self, event_minute_home):
 		event_minute_home = event_minute_home.text.strip()
@@ -114,7 +171,7 @@ class LFP_Scraper():
 	def get_match_events(self, match_id, match_events):
 
 		# print('***** matchEvents *****')
-		# Read features' names?
+		# Pintamos la cabecer
 		if len(self.dataEvents) == 0:
 			current_event = []
 			current_event.append('match_id')
@@ -152,16 +209,97 @@ class LFP_Scraper():
 
 		return True
 
-	def get_match_lineups(self, matchLineups):
+	def get_match_lineups_system(self, match_id, matchLineups):
 
-		# print('***** matchLineups *****')
+		# print('***** get_match_lineups_system *****')
+
+		# Split 2 divs
+		divs = matchLineups.findAll("div")
+
+		# Home System
+		current_lineups = []
+		current_lineups.append(match_id)
+		current_lineups.append('Home')
+		current_lineups.append('System')
+		current_lineups.append(divs[0].text.strip())
+		# Store the data
+		self.dataLineups.append(current_lineups)
+
+		# Away System
+		current_lineups = []
+		current_lineups.append(match_id)
+		current_lineups.append('Away')
+		current_lineups.append('System')
+		current_lineups.append(divs[1].text.strip())
+		# Store the data
+		self.dataLineups.append(current_lineups)
 
 		return True
 
-	def get_match_statistics(self, matchStatistics):
+	def get_match_lineups_players(self, match_id, matchLineups, type):
 
-		# print('***** matchStatistics *****')
-		#print(matchStatistics)
+		# print('***** get_match_lineups_players *****')
+		divs_team = matchLineups.findAll("div", recursive=False)
+
+		for team in [0, 1]:
+			if team == 0: home_away = 'Home'
+			if team == 1: home_away = 'Away'
+
+			divs_player = divs_team[team].findAll("div")
+			for div in divs_player:
+
+				position = div.find("span", {"class": "lineupPosition"})
+				if position is None: position = ""
+				else: position = position.text.strip()
+
+				rating = div.find("span", {"class": "lineupRating"})
+				if rating is None: rating = ""
+				else: rating = rating.text.strip()
+
+				captain = div.find("span", {"class": "lineupCaptain"})
+				if captain is None: captain = ""
+				else: captain = captain.text.strip()
+
+				player = div.contents[2]
+				if player is None: player = ""
+				else: player = player.strip()
+
+				# Curren Player
+				current_lineups = []
+				current_lineups.append(match_id)
+				current_lineups.append(home_away)
+				current_lineups.append(type)
+				current_lineups.append(position)
+				current_lineups.append(player)
+				current_lineups.append(rating)
+				current_lineups.append(captain)
+				# Store the data
+				self.dataLineups.append(current_lineups)
+
+		return True
+
+	def get_match_lineups(self, match_id, matchLineups):
+
+		#print('***** matchLineups *****')
+
+		# Read features' names
+		if len(self.dataLineups) == 0:
+			current_lineups = []
+			current_lineups.append('match_id')
+			current_lineups.append('home_away')
+			current_lineups.append('type')
+			current_lineups.append('position')
+			current_lineups.append('player')
+			current_lineups.append('rating')
+			current_lineups.append('captain')
+
+			# Store the data
+			self.dataLineups.append(current_lineups)
+
+		match_lineup = matchLineups.findAll("div", {"class": "matchLineupsValues"})
+		self.get_match_lineups_system(match_id, match_lineup[0])
+		self.get_match_lineups_players(match_id, match_lineup[1], 'Headlines')
+		self.get_match_lineups_players(match_id, match_lineup[2], 'Substitutes')
 
 		return True
 
@@ -175,25 +313,20 @@ class LFP_Scraper():
 		html = self.download_html(self.url + '/' + url_Match)
 		bs = BeautifulSoup(html, 'html.parser')
 
-		matchHome = bs.find("td", {"id": "matchHome"})
-		matchResult = bs.find("td", {"id": "matchResult"})
-		matchAway = bs.find("td", {"id": "matchAway"})
+		# Get the data of the data match in a row:
+		match_row = self.get_match_details(match_Id, bs, url_Match)
 
 		matchEvents = bs.find("div", {"id": "matchEvents"})
-		matchLineups = bs.find("div", {"id": "matchLineups"})
-		matchStatistics = bs.find("div", {"id": "matchStatistics"})
-
-		self.get_match_details(matchHome, matchResult, matchAway)
 		if matchEvents is not None:
 			self.get_match_events(match_Id, matchEvents)
+
+		matchLineups = bs.find("div", {"id": "matchLineups"})
 		if matchLineups is not None:
-			self.get_match_lineups(matchLineups)
-		if matchStatistics is not None:
-			self.get_match_statistics(matchStatistics)
+			self.get_match_lineups(match_Id, matchLineups)
 
-		return match_Id
+		return match_row
 
-	def scrape(self):
+	def scrape(self, output_fileMatches, output_fileEvents, output_fileLineups, num_de_partidos=1000):
 		print("Web Scraping of LFP from '" + self.url + self.subdomain + "'")
 		print("This process could take roughly 5 minutes.\n")
 
@@ -208,37 +341,40 @@ class LFP_Scraper():
 		match_links = self.get_match_links(html)
 
 		# Cogemos los X primeros para pruebas
-		match_links = match_links[:60]
+		match_links = match_links[:num_de_partidos]
 
 		# Bucle para todos los partidos
 		contador = 0
 		num_partidos = len(match_links)
 		for match in match_links:
 			contador += 1
-			print('Processing match number ' + repr(contador) + ' of ' + repr(num_partidos))
+			print('Processing match number ' + str(contador) + ' of ' + str(num_partidos))
 
 			match_link = match.find('a').get('href')
 			self.get_match(match_link)
 
+		# Pasamos los datos a CSV
+		self.all_data_2_csv(output_fileMatches, output_fileEvents, output_fileLineups)
+
 		# Show elapsed time
 		end_time = time.time()
-		print("\nelapsed time: " +
-			str(round(((end_time - start_time) / 60), 2)) + " minutes")
+		print("\nelapsed time: " + str(round(((end_time - start_time) / 60), 2)) + " minutes")
 
-
-	def dataEvents2csv(self, filename):
+	def data2csv(self, data, filename):
 		# Overwrite to the specified file.
 		# Create it if it does not exist.
 		file = open("../csv/" + filename, "wb+")
 
 		# Dump all the data with CSV format
-		for i in range(len(self.dataEvents)):
-			a = ""
-			for j in range(len(self.dataEvents[i])):
-				a += self.dataEvents[i][j] + ";"
-			file.write(a.encode('utf8'))
-			file.write("\n".encode('utf8'))
+		for i in range(len(data)):
+			new_line = ""
+			for j in range(len(data[i])):
+				new_line += data[i][j] + ";"
+			new_line += "\n"
+			file.write(new_line.encode('utf8'))
 		file.close()
 
-	def data2csv(self, fileEventsName):
-		self.dataEvents2csv(fileEventsName)
+	def all_data_2_csv(self, fileMatchsName, fileEventsName, fileLineupsName):
+		self.data2csv(self.dataMatches, fileMatchsName)
+		self.data2csv(self.dataEvents, fileEventsName)
+		self.data2csv(self.dataLineups, fileLineupsName)
