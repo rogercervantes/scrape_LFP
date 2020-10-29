@@ -97,9 +97,9 @@ class LFP_Scraper():
 	def get_event_home_away(self, event_minute_home):
 		event_minute_home = event_minute_home.text.strip()
 		if event_minute_home != "":
-			event_home_away = 'Home'
+			event_home_away = 'Local'
 		else:
-			event_home_away = 'Away'
+			event_home_away = 'Visitante'
 
 		return event_home_away
 
@@ -113,13 +113,13 @@ class LFP_Scraper():
 		event_Type = event_Type[10:]
 
 		list_Event_Type = {
-			'1': 'Goal',
-			'2': 'Own Goal',
-			'3': 'Penalty Goal',
-			'4': 'Missed Penalty',
-			'5': 'Yellow Card',
-			'6': 'Red Card',
-			'7':  'Change'
+			'1': 'Gol',
+			'2': 'Autogol',
+			'3': 'Gol Penalti',
+			'4': 'Penalti Fallado',
+			'5': 'Tarjeta Amarillla',
+			'6': 'Tarjeta Roja',
+			'7':  'Cambio'
 		}
 
 		# Find value in list. Default return value
@@ -129,7 +129,7 @@ class LFP_Scraper():
 
 	def clear_event_minute(self, event_home_away, event_minute_home, event_minute_away):
 
-		if event_home_away == "Home":
+		if event_home_away == "Local":
 			event_minute = event_minute_home.text.strip()
 		else:
 			event_minute = event_minute_away.text.strip()
@@ -138,7 +138,7 @@ class LFP_Scraper():
 
 	def clear_event_player(self, event_home_away, event_player_home, event_player_away):
 
-		if event_home_away == "Home":
+		if event_home_away == "Local":
 			event_player = event_player_home.text.strip()
 		else:
 			event_player = event_player_away.text.strip()
@@ -152,13 +152,13 @@ class LFP_Scraper():
 
 	def clear_event_2_player(self, event_home_away, event_player_home, event_player_away, event_type):
 
-		if event_home_away == "Home":
+		if event_home_away == "Local":
 			event_2_player = event_player_home.text.strip()
 		else:
 			event_2_player = event_player_away.text.strip()
 
 		# If is a event type in list, remove a web bug (second player)
-		if event_type in ('Change'):
+		if event_type in ('Cambio'):
 			start = event_2_player.find('(')
 			stop = event_2_player.find(')')
 			if len(event_2_player) > stop:
@@ -174,12 +174,12 @@ class LFP_Scraper():
 		# Pintamos la cabecer
 		if len(self.dataEvents) == 0:
 			current_event = []
-			current_event.append('match_id')
-			current_event.append('minute')
-			current_event.append('type')
-			current_event.append('home_away')
-			current_event.append('player')
-			current_event.append('player_2')
+			current_event.append('ID')
+			current_event.append('Minuto')
+			current_event.append('Tipo')
+			current_event.append('Local_Visitante')
+			current_event.append('Jugador')
+			current_event.append('Jugador_2')
 			# Store the data
 			self.dataEvents.append(current_event)
 
@@ -219,8 +219,8 @@ class LFP_Scraper():
 		# Home System
 		current_lineups = []
 		current_lineups.append(match_id)
-		current_lineups.append('Home')
-		current_lineups.append('System')
+		current_lineups.append('Local')
+		current_lineups.append('Sistema')
 		current_lineups.append(divs[0].text.strip())
 		# Store the data
 		self.dataLineups.append(current_lineups)
@@ -228,8 +228,8 @@ class LFP_Scraper():
 		# Away System
 		current_lineups = []
 		current_lineups.append(match_id)
-		current_lineups.append('Away')
-		current_lineups.append('System')
+		current_lineups.append('Visitante')
+		current_lineups.append('Sistema')
 		current_lineups.append(divs[1].text.strip())
 		# Store the data
 		self.dataLineups.append(current_lineups)
@@ -238,19 +238,29 @@ class LFP_Scraper():
 
 	def get_match_lineups_players(self, match_id, matchLineups, type):
 
+		list_Position = {
+			'G': 'Portero',
+			'D': 'Defensa',
+			'M': 'Mediocentro',
+			'F': 'Delantero'
+		}
+
 		# print('***** get_match_lineups_players *****')
 		divs_team = matchLineups.findAll("div", recursive=False)
 
 		for team in [0, 1]:
-			if team == 0: home_away = 'Home'
-			if team == 1: home_away = 'Away'
+			if team == 0: home_away = 'Local'
+			if team == 1: home_away = 'Visitante'
 
 			divs_player = divs_team[team].findAll("div")
 			for div in divs_player:
 
 				position = div.find("span", {"class": "lineupPosition"})
 				if position is None: position = ""
-				else: position = position.text.strip()
+				else:
+					position = position.text.strip()
+					position = list_Position.get(position, position)
+
 
 				rating = div.find("span", {"class": "lineupRating"})
 				if rating is None: rating = ""
@@ -282,24 +292,24 @@ class LFP_Scraper():
 
 		#print('***** matchLineups *****')
 
-		# Read features' names
+		# Añadimos las cabeceras
 		if len(self.dataLineups) == 0:
 			current_lineups = []
-			current_lineups.append('match_id')
-			current_lineups.append('home_away')
-			current_lineups.append('type')
-			current_lineups.append('position')
-			current_lineups.append('player')
-			current_lineups.append('rating')
-			current_lineups.append('captain')
+			current_lineups.append('ID')
+			current_lineups.append('Local_Visitante')
+			current_lineups.append('Tipo')
+			current_lineups.append('Posicion')
+			current_lineups.append('Jugador')
+			current_lineups.append('Puntuacion')
+			current_lineups.append('Capitan')
 
 			# Store the data
 			self.dataLineups.append(current_lineups)
 
 		match_lineup = matchLineups.findAll("div", {"class": "matchLineupsValues"})
 		self.get_match_lineups_system(match_id, match_lineup[0])
-		self.get_match_lineups_players(match_id, match_lineup[1], 'Headlines')
-		self.get_match_lineups_players(match_id, match_lineup[2], 'Substitutes')
+		self.get_match_lineups_players(match_id, match_lineup[1], 'Titular')
+		self.get_match_lineups_players(match_id, match_lineup[2], 'Suplente')
 
 		return True
 
