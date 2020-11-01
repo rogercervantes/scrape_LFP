@@ -92,7 +92,7 @@ class LFP_Scraper():
 
 			self.dataMatches.append(match_row)
 
-			return match_row
+			return match_row[0:3]
 
 	def get_event_home_away(self, event_minute_home):
 		event_minute_home = event_minute_home.text.strip()
@@ -168,7 +168,7 @@ class LFP_Scraper():
 
 		return event_2_player.strip()
 
-	def get_match_events(self, match_id, match_events):
+	def get_match_events(self, match_info, match_events):
 
 		# print('***** matchEvents *****')
 		# Pintamos la cabecer
@@ -176,8 +176,8 @@ class LFP_Scraper():
 			current_event = []
 			current_event.append('ID')
 			current_event.append('Minuto')
-			current_event.append('Tipo')
-			current_event.append('Local_Visitante')
+			current_event.append('Evento')
+			current_event.append('Equipo')
 			current_event.append('Jugador')
 			current_event.append('Jugador_2')
 			# Store the data
@@ -190,6 +190,10 @@ class LFP_Scraper():
 			divs = event.findAll('div')
 
 			event_home_away = self.get_event_home_away(divs[1])
+			event_team = ''
+			if event_home_away == 'Local': event_team = match_info[1]
+			if event_home_away == 'Visitante': event_team = match_info[2]
+
 			event_minute = self.clear_event_minute(event_home_away, divs[1], divs[3])
 			event_type = self.clear_event_type(divs[2])
 			event_player = self.clear_event_player(event_home_away, divs[0], divs[4])
@@ -197,10 +201,10 @@ class LFP_Scraper():
 
 			# Create Current Event
 			current_event = []
-			current_event.append(match_id)
+			current_event.append(match_info[0])
 			current_event.append(event_minute)
 			current_event.append(event_type)
-			current_event.append(event_home_away)
+			current_event.append(event_team)
 			current_event.append(event_player)
 			current_event.append(event_2_player)
 
@@ -209,7 +213,7 @@ class LFP_Scraper():
 
 		return True
 
-	def get_match_lineups_system(self, match_id, matchLineups):
+	def get_match_lineups_system(self, match_info, matchLineups):
 
 		# print('***** get_match_lineups_system *****')
 
@@ -218,8 +222,8 @@ class LFP_Scraper():
 
 		# Home System
 		current_lineups = []
-		current_lineups.append(match_id)
-		current_lineups.append('Local')
+		current_lineups.append(match_info[0])
+		current_lineups.append(match_info[1])
 		current_lineups.append('Sistema')
 		current_lineups.append(divs[0].text.strip())
 		# Store the data
@@ -227,8 +231,8 @@ class LFP_Scraper():
 
 		# Away System
 		current_lineups = []
-		current_lineups.append(match_id)
-		current_lineups.append('Visitante')
+		current_lineups.append(match_info[0])
+		current_lineups.append(match_info[2])
 		current_lineups.append('Sistema')
 		current_lineups.append(divs[1].text.strip())
 		# Store the data
@@ -236,7 +240,7 @@ class LFP_Scraper():
 
 		return True
 
-	def get_match_lineups_players(self, match_id, matchLineups, type):
+	def get_match_lineups_players(self, match_info, matchLineups, type):
 
 		list_Position = {
 			'G': 'Portero',
@@ -249,8 +253,8 @@ class LFP_Scraper():
 		divs_team = matchLineups.findAll("div", recursive=False)
 
 		for team in [0, 1]:
-			if team == 0: home_away = 'Local'
-			if team == 1: home_away = 'Visitante'
+			if team == 0: home_away = match_info[1]
+			if team == 1: home_away = match_info[2]
 
 			divs_player = divs_team[team].findAll("div")
 			for div in divs_player:
@@ -276,7 +280,7 @@ class LFP_Scraper():
 
 				# Curren Player
 				current_lineups = []
-				current_lineups.append(match_id)
+				current_lineups.append(match_info[0])
 				current_lineups.append(home_away)
 				current_lineups.append(type)
 				current_lineups.append(position)
@@ -288,7 +292,7 @@ class LFP_Scraper():
 
 		return True
 
-	def get_match_lineups(self, match_id, matchLineups):
+	def get_match_lineups(self, match_info, matchLineups):
 
 		#print('***** matchLineups *****')
 
@@ -296,8 +300,8 @@ class LFP_Scraper():
 		if len(self.dataLineups) == 0:
 			current_lineups = []
 			current_lineups.append('ID')
-			current_lineups.append('Local_Visitante')
-			current_lineups.append('Tipo')
+			current_lineups.append('Equipo')
+			current_lineups.append('Titular')
 			current_lineups.append('Posicion')
 			current_lineups.append('Jugador')
 			current_lineups.append('Puntuacion')
@@ -307,9 +311,9 @@ class LFP_Scraper():
 			self.dataLineups.append(current_lineups)
 
 		match_lineup = matchLineups.findAll("div", {"class": "matchLineupsValues"})
-		self.get_match_lineups_system(match_id, match_lineup[0])
-		self.get_match_lineups_players(match_id, match_lineup[1], 'Titular')
-		self.get_match_lineups_players(match_id, match_lineup[2], 'Suplente')
+		self.get_match_lineups_system(match_info, match_lineup[0])
+		self.get_match_lineups_players(match_info, match_lineup[1], 'Titular')
+		self.get_match_lineups_players(match_info, match_lineup[2], 'Suplente')
 
 		return True
 
@@ -317,59 +321,26 @@ class LFP_Scraper():
 		#print('***** get_match *****')
 		match_Id = url_Match.split(sep=',')[3]
 		match_Id = match_Id[0:-4]
-		#print('match_Id: ' + match_Id)
 
 		# Download HTML
 		html = self.download_html(self.url + '/' + url_Match)
 		bs = BeautifulSoup(html, 'html.parser')
 
 		# Get the data of the data match in a row:
-		match_row = self.get_match_details(match_Id, bs, url_Match)
+		# Obtenemos el id y los dos equipos
+		match_info = self.get_match_details(match_Id, bs, url_Match)
 
 		matchEvents = bs.find("div", {"id": "matchEvents"})
 		if matchEvents is not None:
-			self.get_match_events(match_Id, matchEvents)
+			self.get_match_events(match_info, matchEvents)
 
 		matchLineups = bs.find("div", {"id": "matchLineups"})
 		if matchLineups is not None:
-			self.get_match_lineups(match_Id, matchLineups)
+			self.get_match_lineups(match_info, matchLineups)
 
-		return match_row
+		return match_info
 
-	def scrape(self, output_fileMatches, output_fileEvents, output_fileLineups, num_de_partidos=1000):
-		print("Web Scraping of LFP from '" + self.url + self.subdomain + "'")
-		print("This process could take roughly 5 minutes.\n")
-
-		# Start timer
-		start_time = time.time()
-
-		# Download HTML
-		html = self.download_html(self.url + self.subdomain)
-		bs = BeautifulSoup(html, 'html.parser')
-
-		# Get the links of each match
-		match_links = self.get_match_links(html)
-
-		# Cogemos los X primeros para pruebas
-		match_links = match_links[:num_de_partidos]
-
-		# Bucle para todos los partidos
-		contador = 0
-		num_partidos = len(match_links)
-		for match in match_links:
-			contador += 1
-			print('Processing match number ' + str(contador) + ' of ' + str(num_partidos))
-
-			match_link = match.find('a').get('href')
-			self.get_match(match_link)
-
-		# Pasamos los datos a CSV
-		self.all_data_2_csv(output_fileMatches, output_fileEvents, output_fileLineups)
-
-		# Show elapsed time
-		end_time = time.time()
-		print("\nelapsed time: " + str(round(((end_time - start_time) / 60), 2)) + " minutes")
-
+	# Pasamos una estructura a CSV
 	def data2csv(self, data, filename):
 		# Overwrite to the specified file.
 		# Create it if it does not exist.
@@ -384,7 +355,43 @@ class LFP_Scraper():
 			file.write(new_line.encode('utf8'))
 		file.close()
 
+	# Pasamos todas las estructuras a csv
 	def all_data_2_csv(self, fileMatchsName, fileEventsName, fileLineupsName):
 		self.data2csv(self.dataMatches, fileMatchsName)
 		self.data2csv(self.dataEvents, fileEventsName)
 		self.data2csv(self.dataLineups, fileLineupsName)
+
+	# Función principal, le pasamos los 3 nombres de los ficheros y opcional si queremos coger solo X partidos.
+	def scrape(self, output_fileMatches, output_fileEvents, output_fileLineups, num_de_partidos=1000):
+		print("Web Scraping de la LFP desde '" + self.url + self.subdomain + "'")
+		print("Este proceso puede tardar alrededor de 5 minutos.\n")
+
+		# Start timer
+		start_time = time.time()
+
+		# Download HTML
+		html = self.download_html(self.url + self.subdomain)
+		bs = BeautifulSoup(html, 'html.parser')
+
+		# Get the links of each match
+		match_links = self.get_match_links(html)
+
+		# Cogemos los X primeros para pruebas, o todos si no pasamos parametro
+		match_links = match_links[:num_de_partidos]
+
+		# Bucle para todos los partidos seleccionados
+		contador = 0
+		num_partidos = len(match_links)
+		for match in match_links:
+			contador += 1
+			print('Procesando partido número ' + str(contador) + ' de ' + str(num_partidos))
+
+			match_link = match.find('a').get('href')
+			self.get_match(match_link)
+
+		# Pasamos los datos a CSV
+		self.all_data_2_csv(output_fileMatches, output_fileEvents, output_fileLineups)
+
+		# Show elapsed time
+		end_time = time.time()
+		print("\nelapsed time: " + str(round(((end_time - start_time) / 60), 2)) + " minutes")
