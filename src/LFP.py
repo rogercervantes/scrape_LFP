@@ -30,10 +30,10 @@ class LFP_Scraper():
 
 	def get_match_cols(self, bs, url_Match):
 
-		cols_general = ['ID', 'Local', 'Visitante', 'Liga', 'Fecha y hora',
-						'Temporada', 'Árbitro', 'Estadio']
-		cols_goles = ['Goles Local', 'Goles Visitante', 'Goles 1er tiempo Local',
-					  'Goles 1er tiempo Visitante']
+		cols_general = ['ID', 'Local', 'Visitante', 'Liga', 'Temporada',
+						'Fecha-hora', 'Árbitro', 'Estadio', 'Sistema_Local', 'Sistema_Visitante']
+		cols_goles = ['Goles_Local', 'Goles_Visitante', 'Goles_1er_tiempo_Local',
+					  'Goles_1er_tiempo_Visitante']
 
 		# Podemos obtener los nombres de las columnas a partir del primer partido:
 		matchStatistics = bs.find("div", {"id": "matchStatistics"})
@@ -41,13 +41,13 @@ class LFP_Scraper():
 
 		cols_stats = []
 		for i in range(1, 64, 4):
-			cols_stats.append(stats[i].findAll("div")[1].text.strip())
+			cols_stats.append(stats[i].findAll("div")[1].text.strip().replace(' ','_').replace('[%]','(por)'))
 
 		# Nos interesa que cada estadística se guarde por separado LOCAL y VISITANTE:
 		cols_lv = []
 		for col in cols_stats:
-			cols_lv.append(col + ' Local')
-			cols_lv.append(col + ' Visitante')
+			cols_lv.append(col + '_Local')
+			cols_lv.append(col + '_Visitante')
 
 		cols = cols_general + cols_goles + cols_lv
 
@@ -55,6 +55,7 @@ class LFP_Scraper():
 		self.dataMatches.append(cols)
 
 	def get_match_details(self, match_Id, bs, url_Match):
+		#print("get_match_details")
 
 		# Pintamos la cabecera la primera vez
 		if len(self.dataMatches) == 0: self.get_match_cols(bs, url_Match)
@@ -66,11 +67,17 @@ class LFP_Scraper():
 			principal_info = bs.find("div", {"id": "matchInfo"})
 			a = principal_info.findAll("a")
 			match_row = [match_Id, a[2].text.strip(), a[3].text.strip(),
-						 a[0].text.strip(), a[1].text.strip(),
-						 principal_info.findAll("div")[1].text.strip()[19:28]]
-			aplazado = ['Sin disputar'] * 38
+						 "".join(a[0].text.strip().split()),
+						 principal_info.findAll("div")[1].text.strip()[19:28],
+						 a[1].text.strip().replace(',', ' -')]
+			aplazado = ['Sin disputar'] * 4 + ['-1'] * 36
+			self.dataMatches.append(match_row + aplazado)
 			return match_row + aplazado
 		else:
+			matchSystems = bs.find("div", {"id": "matchLineups"})
+			matchSystems = matchSystems.findAll("div", {"class": "matchLineupsValues"})[0]
+			matchSystems = matchSystems.findAll("div")
+
 			stats = matchStatistics.findAll("div")
 
 			principal_info = bs.find("div", {"id": "matchInfo"})
@@ -81,10 +88,10 @@ class LFP_Scraper():
 			[goles_1erT_L, goles_1erT_V] = d[6].text.strip()[-3:].split(':')
 
 			match_row = [match_Id, a[2].text.strip(), a[3].text.strip(),
-						 a[0].text.strip(), a[1].text.strip(),
-						 d[1].text.strip()[19:28], d[3].text.strip()[9:],
-						 d[4].text.strip()[9:], golesL, golesV,
-						 goles_1erT_L, goles_1erT_V]
+						 "".join(a[0].text.strip().split()), d[1].text.strip()[19:28],
+						 a[1].text.strip().replace(',', ' -'), d[3].text.strip()[9:].replace(',', ' -'),
+						 d[4].text.strip()[9:], matchSystems[0].text, matchSystems[1].text,
+						 golesL, golesV, goles_1erT_L, goles_1erT_V]
 
 			for i in range(1, 64, 4):
 				match_row.append(stats[i].findAll("div")[0].text.strip())
@@ -92,7 +99,7 @@ class LFP_Scraper():
 
 			self.dataMatches.append(match_row)
 
-			return match_row[0:3]
+			return match_row[0:6]
 
 	def get_event_home_away(self, event_minute_home):
 		event_minute_home = event_minute_home.text.strip()
@@ -175,6 +182,10 @@ class LFP_Scraper():
 		if len(self.dataEvents) == 0:
 			current_event = []
 			current_event.append('ID')
+			current_event.append('Local')
+			current_event.append('Visitante')
+			current_event.append('Liga')
+			current_event.append('Temporada')
 			current_event.append('Minuto')
 			current_event.append('Evento')
 			current_event.append('Equipo')
@@ -202,6 +213,10 @@ class LFP_Scraper():
 			# Create Current Event
 			current_event = []
 			current_event.append(match_info[0])
+			current_event.append(match_info[1])
+			current_event.append(match_info[2])
+			current_event.append(match_info[3])
+			current_event.append(match_info[4])
 			current_event.append(event_minute)
 			current_event.append(event_type)
 			current_event.append(event_team)
@@ -240,7 +255,7 @@ class LFP_Scraper():
 
 		return True
 
-	def get_match_lineups_players(self, match_info, matchLineups, type):
+	def get_match_lineups_players(self, match_info, matchLineups, titular):
 
 		list_Position = {
 			'G': 'Portero',
@@ -281,8 +296,12 @@ class LFP_Scraper():
 				# Curren Player
 				current_lineups = []
 				current_lineups.append(match_info[0])
+				current_lineups.append(match_info[1])
+				current_lineups.append(match_info[2])
+				current_lineups.append(match_info[3])
+				current_lineups.append(match_info[4])
 				current_lineups.append(home_away)
-				current_lineups.append(type)
+				current_lineups.append(titular)
 				current_lineups.append(position)
 				current_lineups.append(player)
 				current_lineups.append(rating)
@@ -300,6 +319,10 @@ class LFP_Scraper():
 		if len(self.dataLineups) == 0:
 			current_lineups = []
 			current_lineups.append('ID')
+			current_lineups.append('Local')
+			current_lineups.append('Visitante')
+			current_lineups.append('Liga')
+			current_lineups.append('Temporada')
 			current_lineups.append('Equipo')
 			current_lineups.append('Titular')
 			current_lineups.append('Posicion')
@@ -311,9 +334,8 @@ class LFP_Scraper():
 			self.dataLineups.append(current_lineups)
 
 		match_lineup = matchLineups.findAll("div", {"class": "matchLineupsValues"})
-		self.get_match_lineups_system(match_info, match_lineup[0])
-		self.get_match_lineups_players(match_info, match_lineup[1], 'Titular')
-		self.get_match_lineups_players(match_info, match_lineup[2], 'Suplente')
+		self.get_match_lineups_players(match_info, match_lineup[1], 'Si')
+		self.get_match_lineups_players(match_info, match_lineup[2], 'No')
 
 		return True
 
@@ -350,7 +372,7 @@ class LFP_Scraper():
 		for i in range(len(data)):
 			new_line = ""
 			for j in range(len(data[i])):
-				new_line += data[i][j] + ";"
+				new_line += data[i][j] + ","
 			new_line += "\n"
 			file.write(new_line.encode('utf8'))
 		file.close()
