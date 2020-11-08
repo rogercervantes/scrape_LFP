@@ -228,33 +228,6 @@ class LFP_Scraper():
 
 		return True
 
-	def get_match_lineups_system(self, match_info, matchLineups):
-
-		# print('***** get_match_lineups_system *****')
-
-		# Split 2 divs
-		divs = matchLineups.findAll("div")
-
-		# Home System
-		current_lineups = []
-		current_lineups.append(match_info[0])
-		current_lineups.append(match_info[1])
-		current_lineups.append('Sistema')
-		current_lineups.append(divs[0].text.strip())
-		# Store the data
-		self.dataLineups.append(current_lineups)
-
-		# Away System
-		current_lineups = []
-		current_lineups.append(match_info[0])
-		current_lineups.append(match_info[2])
-		current_lineups.append('Sistema')
-		current_lineups.append(divs[1].text.strip())
-		# Store the data
-		self.dataLineups.append(current_lineups)
-
-		return True
-
 	def get_match_lineups_players(self, match_info, matchLineups, titular):
 
 		list_Position = {
